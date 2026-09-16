@@ -1,7 +1,10 @@
 package com.kbase.backend.document;
 
 import com.kbase.backend.document.dto.DocumentResponse;
+import com.kbase.backend.document.dto.DocumentPageResponse;
 import com.kbase.backend.document.dto.UpdateDocumentRequest;
+import com.kbase.backend.document.extraction.DocumentExtractionService;
+import com.kbase.backend.document.extraction.dto.DocumentContentResponse;
 import com.kbase.backend.exception.ConflictException;
 import com.kbase.backend.exception.ForbiddenException;
 import com.kbase.backend.exception.InvalidCredentialsException;
@@ -18,10 +21,11 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
@@ -35,6 +39,7 @@ public class DocumentService {
     private final UserRepository userRepository;
     private final StorageService storageService;
     private final DocumentFileValidator fileValidator;
+    private final DocumentExtractionService extractionService;
 
     private static final java.util.Set<String> PREVIEWABLE_TYPES = java.util.Set.of(
             "application/pdf", "image/png", "image/jpeg", "text/plain"
@@ -46,7 +51,8 @@ public class DocumentService {
             ProjectMemberRepository memberRepository,
             UserRepository userRepository,
             StorageService storageService,
-            DocumentFileValidator fileValidator
+            DocumentFileValidator fileValidator,
+            DocumentExtractionService extractionService
     ) {
         this.documentRepository = documentRepository;
         this.projectRepository = projectRepository;
@@ -54,6 +60,7 @@ public class DocumentService {
         this.userRepository = userRepository;
         this.storageService = storageService;
         this.fileValidator = fileValidator;
+        this.extractionService = extractionService;
     }
 
     @Transactional
@@ -90,7 +97,9 @@ public class DocumentService {
                     "Unable to read the uploaded file", exception);
         }
         try {
-            return DocumentResponse.from(documentRepository.saveAndFlush(document));
+            Document saved = documentRepository.saveAndFlush(document);
+            extractionService.initializeAndExtract(saved);
+            return DocumentResponse.from(saved);
         } catch (DataIntegrityViolationException exception) {
             rollbackUpload(storageKey, exception);
             throw new ConflictException("Storage key already exists");
@@ -101,19 +110,48 @@ public class DocumentService {
     }
 
     @Transactional(readOnly = true)
-    public List<DocumentResponse> list(UUID projectId, String authenticatedEmail) {
+    public DocumentPageResponse list(
+            UUID projectId,
+            DocumentSearchCriteria filters,
+            int page,
+            int size,
+            String sort,
+            String authenticatedEmail
+    ) {
         requireProjectMember(projectId, authenticatedEmail);
-        return documentRepository
-                .findAllByProjectIdAndStatusOrderByCreatedAtDesc(projectId, DocumentStatus.ACTIVE)
-                .stream()
-                .map(DocumentResponse::from)
-                .toList();
+        if (filters.from() != null && filters.to() != null
+                && filters.from().isAfter(filters.to())) {
+            throw new BadRequestException("from must be before or equal to to");
+        }
+        Sort validatedSort = parseSort(sort);
+        return DocumentPageResponse.from(documentRepository.findAll(
+                DocumentSpecifications.matching(projectId, filters),
+                PageRequest.of(page, size, validatedSort)));
     }
 
     @Transactional(readOnly = true)
     public DocumentResponse get(UUID projectId, UUID documentId, String authenticatedEmail) {
         requireProjectMember(projectId, authenticatedEmail);
         return DocumentResponse.from(activeDocument(projectId, documentId));
+    }
+
+    @Transactional(readOnly = true)
+    public DocumentContentResponse getExtractedContent(
+            UUID projectId, UUID documentId, String authenticatedEmail
+    ) {
+        requireProjectMember(projectId, authenticatedEmail);
+        Document document = activeDocument(projectId, documentId);
+        return extractionService.get(document.getId());
+    }
+
+    @Transactional
+    public DocumentContentResponse retryExtraction(
+            UUID projectId, UUID documentId, String authenticatedEmail
+    ) {
+        AccessContext context = requireProjectMember(projectId, authenticatedEmail);
+        Document document = activeDocument(projectId, documentId);
+        requireUploaderOrOwner(document, context);
+        return extractionService.retry(document);
     }
 
     @Transactional(readOnly = true)
@@ -194,6 +232,25 @@ public class DocumentService {
             throw new BadRequestException("Title is required and must not exceed 200 characters");
         }
         return title.trim();
+    }
+
+    private Sort parseSort(String value) {
+        String requested = value == null || value.isBlank() ? "createdAt,desc" : value.trim();
+        String[] parts = requested.split(",", -1);
+        java.util.Set<String> allowed = java.util.Set.of(
+                "createdAt", "updatedAt", "title", "fileSize");
+        if (parts.length > 2 || !allowed.contains(parts[0])) {
+            throw new BadRequestException("Invalid sort field");
+        }
+        Sort.Direction direction;
+        try {
+            direction = parts.length == 1
+                    ? Sort.Direction.ASC
+                    : Sort.Direction.fromString(parts[1]);
+        } catch (IllegalArgumentException exception) {
+            throw new BadRequestException("Invalid sort direction");
+        }
+        return Sort.by(direction, parts[0]);
     }
 
     private DocumentContent content(Document document) {

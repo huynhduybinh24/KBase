@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import jakarta.validation.ConstraintViolationException;
 import com.kbase.backend.storage.StorageException;
 
@@ -116,6 +117,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> handleUnreadableRequest(HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, "Malformed request body", request, Map.of());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, "Invalid request parameter", request, Map.of());
     }
 
     @ExceptionHandler(AccessDeniedException.class)

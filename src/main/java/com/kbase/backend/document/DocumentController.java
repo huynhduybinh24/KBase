@@ -1,7 +1,9 @@
 package com.kbase.backend.document;
 
 import com.kbase.backend.document.dto.DocumentResponse;
+import com.kbase.backend.document.dto.DocumentPageResponse;
 import com.kbase.backend.document.dto.UpdateDocumentRequest;
+import com.kbase.backend.document.extraction.dto.DocumentContentResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -10,6 +12,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -29,8 +33,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.format.annotation.DateTimeFormat;
 
-import java.util.List;
+import java.time.Instant;
 import java.util.UUID;
 
 @RestController
@@ -73,12 +78,26 @@ public class DocumentController {
     }
 
     @GetMapping
-    @Operation(summary = "List active project documents")
-    public List<DocumentResponse> list(
+    @Operation(summary = "Search and filter active project documents",
+            description = "Combines optional filters with project isolation and pagination. "
+                    + "Sort format is field,direction; allowed fields: createdAt, updatedAt, title, fileSize.")
+    public DocumentPageResponse list(
             @PathVariable UUID projectId,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String contentType,
+            @RequestParam(required = false) UUID uploadedBy,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
             @AuthenticationPrincipal UserDetails principal
     ) {
-        return documentService.list(projectId, principal.getUsername());
+        return documentService.list(projectId,
+                new DocumentSearchCriteria(q, contentType, uploadedBy, from, to),
+                page, size, sort, principal.getUsername());
     }
 
     @GetMapping("/{documentId}")
@@ -89,6 +108,29 @@ public class DocumentController {
             @AuthenticationPrincipal UserDetails principal
     ) {
         return documentService.get(projectId, documentId, principal.getUsername());
+    }
+
+    @GetMapping("/{documentId}/content")
+    @Operation(summary = "Get extracted document text and extraction status")
+    public DocumentContentResponse extractedContent(
+            @PathVariable UUID projectId,
+            @PathVariable UUID documentId,
+            @AuthenticationPrincipal UserDetails principal
+    ) {
+        return documentService.getExtractedContent(
+                projectId, documentId, principal.getUsername());
+    }
+
+    @PostMapping("/{documentId}/extract")
+    @Operation(summary = "Retry text extraction",
+            description = "Available to the uploader or project owner for pending, failed, or unsupported documents.")
+    @ApiResponse(responseCode = "409", description = "Extraction is processing or already complete")
+    public DocumentContentResponse retryExtraction(
+            @PathVariable UUID projectId,
+            @PathVariable UUID documentId,
+            @AuthenticationPrincipal UserDetails principal
+    ) {
+        return documentService.retryExtraction(projectId, documentId, principal.getUsername());
     }
 
     @GetMapping("/{documentId}/download")

@@ -1,6 +1,7 @@
 package com.kbase.backend.document;
 
 import com.kbase.backend.document.dto.UpdateDocumentRequest;
+import com.kbase.backend.document.extraction.DocumentExtractionService;
 import com.kbase.backend.exception.ForbiddenException;
 import com.kbase.backend.exception.ResourceNotFoundException;
 import com.kbase.backend.exception.UnsupportedPreviewTypeException;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.data.domain.PageImpl;
 
 import java.io.ByteArrayInputStream;
 import java.util.List;
@@ -24,6 +26,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -38,6 +41,7 @@ class DocumentServiceTests {
     private ProjectMemberRepository memberRepository;
     private UserRepository userRepository;
     private StorageService storageService;
+    private DocumentExtractionService extractionService;
     private DocumentService documentService;
 
     private UUID projectId;
@@ -55,6 +59,7 @@ class DocumentServiceTests {
         memberRepository = mock(ProjectMemberRepository.class);
         userRepository = mock(UserRepository.class);
         storageService = mock(StorageService.class);
+        extractionService = mock(DocumentExtractionService.class);
         documentService = new DocumentService(
                 documentRepository,
                 projectRepository,
@@ -62,7 +67,8 @@ class DocumentServiceTests {
                 userRepository,
                 storageService,
                 new DocumentFileValidator(new StorageProperties(
-                        "http://localhost:9000", "key", "secret", "bucket", 1024))
+                        "http://localhost:9000", "key", "secret", "bucket", 1024)),
+                extractionService
         );
 
         projectId = UUID.randomUUID();
@@ -88,6 +94,7 @@ class DocumentServiceTests {
                 "projects/" + projectId + "/documents/"));
         assertEquals(DocumentStatus.ACTIVE, response.status());
         assertEquals(uploader.getEmail(), response.uploadedBy().email());
+        verify(extractionService).initializeAndExtract(any(Document.class));
     }
 
     @Test
@@ -98,25 +105,65 @@ class DocumentServiceTests {
 
         assertThrows(
                 ForbiddenException.class,
-                () -> documentService.list(projectId, outsider.getEmail())
+                () -> documentService.list(projectId, filters(), 0, 20,
+                        "createdAt,desc", outsider.getEmail())
         );
         verify(documentRepository, never())
-                .findAllByProjectIdAndStatusOrderByCreatedAtDesc(any(), any());
+                .findAll(any(org.springframework.data.jpa.domain.Specification.class),
+                        any(org.springframework.data.domain.Pageable.class));
     }
 
     @Test
     void memberCanListActiveDocuments() {
         arrangeMember(member);
         Document document = document(uploader);
-        when(documentRepository.findAllByProjectIdAndStatusOrderByCreatedAtDesc(
-                projectId,
-                DocumentStatus.ACTIVE
-        )).thenReturn(List.of(document));
+        when(documentRepository.findAll(
+                any(org.springframework.data.jpa.domain.Specification.class),
+                any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(document)));
 
-        var result = documentService.list(projectId, member.getEmail());
+        var result = documentService.list(projectId, filters(), 0, 20,
+                "createdAt,desc", member.getEmail());
 
-        assertEquals(1, result.size());
-        assertEquals(DocumentStatus.ACTIVE, result.getFirst().status());
+        assertEquals(1, result.content().size());
+        assertEquals(DocumentStatus.ACTIVE, result.content().getFirst().status());
+    }
+
+    @Test
+    void searchUsesRequestedPaginationAndSafeSorting() {
+        arrangeMember(member);
+        when(documentRepository.findAll(
+                any(org.springframework.data.jpa.domain.Specification.class),
+                any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        documentService.list(projectId,
+                new DocumentSearchCriteria("GUIDE", "application/pdf", uploader.getId(),
+                        java.time.Instant.parse("2026-01-01T00:00:00Z"),
+                        java.time.Instant.parse("2026-12-31T23:59:59Z")),
+                2, 10, "title,asc", member.getEmail());
+
+        var captor = org.mockito.ArgumentCaptor.forClass(
+                org.springframework.data.domain.Pageable.class);
+        verify(documentRepository).findAll(
+                any(org.springframework.data.jpa.domain.Specification.class), captor.capture());
+        assertEquals(2, captor.getValue().getPageNumber());
+        assertEquals(10, captor.getValue().getPageSize());
+        assertTrue(captor.getValue().getSort().getOrderFor("title").isAscending());
+    }
+
+    @Test
+    void invalidSortAndReversedDateRangeAreRejected() {
+        arrangeMember(member);
+        assertThrows(com.kbase.backend.exception.BadRequestException.class,
+                () -> documentService.list(projectId, filters(), 0, 20,
+                        "storageKey,asc", member.getEmail()));
+        assertThrows(com.kbase.backend.exception.BadRequestException.class,
+                () -> documentService.list(projectId,
+                        new DocumentSearchCriteria(null, null, null,
+                                java.time.Instant.parse("2026-02-01T00:00:00Z"),
+                                java.time.Instant.parse("2026-01-01T00:00:00Z")),
+                        0, 20, "createdAt,desc", member.getEmail()));
     }
 
     @Test
@@ -311,6 +358,42 @@ class DocumentServiceTests {
         );
     }
 
+    @Test
+    void outsiderCannotReadExtractedContent() {
+        arrangeUserAndProject(outsider);
+        when(memberRepository.existsByProjectIdAndUserId(projectId, outsider.getId()))
+                .thenReturn(false);
+
+        assertThrows(ForbiddenException.class,
+                () -> documentService.getExtractedContent(
+                        projectId, documentId, outsider.getEmail()));
+        verify(extractionService, never()).get(any());
+    }
+
+    @Test
+    void deletedOrWrongProjectDocumentContentIsNotFound() {
+        arrangeMember(member);
+        when(documentRepository.findByIdAndProjectIdAndStatus(
+                documentId, projectId, DocumentStatus.ACTIVE)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class,
+                () -> documentService.getExtractedContent(
+                        projectId, documentId, member.getEmail()));
+    }
+
+    @Test
+    void onlyUploaderOrOwnerCanRetryExtraction() {
+        arrangeMember(member);
+        Document document = document(uploader);
+        arrangeActiveDocument(document);
+        assertThrows(ForbiddenException.class,
+                () -> documentService.retryExtraction(
+                        projectId, documentId, member.getEmail()));
+
+        arrangeMember(owner);
+        documentService.retryExtraction(projectId, documentId, owner.getEmail());
+        verify(extractionService).retry(document);
+    }
+
     private void arrangeMember(User user) {
         arrangeUserAndProject(user);
         when(memberRepository.existsByProjectIdAndUserId(projectId, user.getId()))
@@ -333,6 +416,10 @@ class DocumentServiceTests {
     private MockMultipartFile file() {
         return new MockMultipartFile("file", "architecture.pdf", "application/pdf",
                 new byte[]{1, 2, 3});
+    }
+
+    private DocumentSearchCriteria filters() {
+        return new DocumentSearchCriteria(null, null, null, null, null);
     }
 
     private Document document(User uploadedBy) {

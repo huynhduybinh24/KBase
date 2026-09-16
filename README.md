@@ -99,6 +99,17 @@ Document metadata is stored in PostgreSQL and file bytes are stored in MinIO. Al
 | `GET` | `/api/projects/{projectId}/documents/{documentId}/preview` | Preview PDF, PNG, JPEG, or plain text inline |
 | `PUT` | `/api/projects/{projectId}/documents/{documentId}` | Update title and description as uploader or project owner |
 | `DELETE` | `/api/projects/{projectId}/documents/{documentId}` | Soft-delete as uploader or project owner |
+| `GET` | `/api/projects/{projectId}/documents/{documentId}/content` | Read extracted text and extraction status |
+| `POST` | `/api/projects/{projectId}/documents/{documentId}/extract` | Retry extraction as uploader or project owner |
+
+The document list supports `q`, `contentType`, `uploadedBy`, `from`, `to`, `page`,
+`size`, and `sort` query parameters. Results are always limited to active documents in
+the requested project. Page size defaults to 20 and cannot exceed 100. Sortable fields
+are `createdAt`, `updatedAt`, `title`, and `fileSize`.
+
+Text extraction runs synchronously after upload and is stored separately from document
+metadata. Plain text, Markdown, PDF, and DOCX are supported. Other allowed upload types
+are retained with an `UNSUPPORTED` extraction status for future processing.
 
 ## Project structure
 
