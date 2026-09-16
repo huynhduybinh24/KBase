@@ -1,18 +1,23 @@
 package com.kbase.backend.document;
 
-import com.kbase.backend.document.dto.CreateDocumentRequest;
 import com.kbase.backend.document.dto.UpdateDocumentRequest;
-import com.kbase.backend.exception.ConflictException;
 import com.kbase.backend.exception.ForbiddenException;
 import com.kbase.backend.exception.ResourceNotFoundException;
+import com.kbase.backend.exception.UnsupportedPreviewTypeException;
 import com.kbase.backend.project.Project;
 import com.kbase.backend.project.ProjectRepository;
 import com.kbase.backend.project.member.ProjectMemberRepository;
 import com.kbase.backend.user.User;
 import com.kbase.backend.user.UserRepository;
+import com.kbase.backend.storage.StorageException;
+import com.kbase.backend.storage.StorageProperties;
+import com.kbase.backend.storage.StorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.mock.web.MockMultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,6 +29,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 class DocumentServiceTests {
 
@@ -31,6 +37,7 @@ class DocumentServiceTests {
     private ProjectRepository projectRepository;
     private ProjectMemberRepository memberRepository;
     private UserRepository userRepository;
+    private StorageService storageService;
     private DocumentService documentService;
 
     private UUID projectId;
@@ -47,11 +54,15 @@ class DocumentServiceTests {
         projectRepository = mock(ProjectRepository.class);
         memberRepository = mock(ProjectMemberRepository.class);
         userRepository = mock(UserRepository.class);
+        storageService = mock(StorageService.class);
         documentService = new DocumentService(
                 documentRepository,
                 projectRepository,
                 memberRepository,
-                userRepository
+                userRepository,
+                storageService,
+                new DocumentFileValidator(new StorageProperties(
+                        "http://localhost:9000", "key", "secret", "bucket", 1024))
         );
 
         projectId = UUID.randomUUID();
@@ -66,14 +77,15 @@ class DocumentServiceTests {
     @Test
     void memberCanCreateDocumentMetadata() {
         arrangeMember(uploader);
-        when(documentRepository.existsByStorageKey("projects/key.pdf")).thenReturn(false);
         when(documentRepository.saveAndFlush(any(Document.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        var response = documentService.create(projectId, createRequest(), uploader.getEmail());
+        var response = documentService.create(projectId, file(), " Architecture Guide ",
+                " System architecture ", uploader.getEmail());
 
         assertEquals("Architecture Guide", response.title());
-        assertEquals("projects/key.pdf", response.storageKey());
+        org.junit.jupiter.api.Assertions.assertTrue(response.storageKey().startsWith(
+                "projects/" + projectId + "/documents/"));
         assertEquals(DocumentStatus.ACTIVE, response.status());
         assertEquals(uploader.getEmail(), response.uploadedBy().email());
     }
@@ -226,15 +238,56 @@ class DocumentServiceTests {
     }
 
     @Test
-    void duplicateStorageKeyReturnsConflict() {
+    void databaseFailureRemovesUploadedObject() {
         arrangeMember(uploader);
-        when(documentRepository.existsByStorageKey("projects/key.pdf")).thenReturn(true);
+        when(documentRepository.saveAndFlush(any(Document.class)))
+                .thenThrow(new DataIntegrityViolationException("conflict"));
 
         assertThrows(
-                ConflictException.class,
-                () -> documentService.create(projectId, createRequest(), uploader.getEmail())
+                com.kbase.backend.exception.ConflictException.class,
+                () -> documentService.create(projectId, file(), "Guide", null,
+                        uploader.getEmail())
         );
+        verify(storageService).delete(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void storageFailureDoesNotPersistMetadata() {
+        arrangeMember(uploader);
+        doThrow(new StorageException("unavailable", new RuntimeException()))
+                .when(storageService).upload(any(), any(), any(Long.class), any());
+
+        assertThrows(StorageException.class,
+                () -> documentService.create(projectId, file(), "Guide", null,
+                        uploader.getEmail()));
         verify(documentRepository, never()).saveAndFlush(any(Document.class));
+    }
+
+    @Test
+    void memberCanDownloadAndPreviewPdf() {
+        arrangeMember(member);
+        Document document = document(uploader);
+        arrangeActiveDocument(document);
+        when(storageService.download(document.getStorageKey()))
+                .thenReturn(new ByteArrayInputStream(new byte[]{1}));
+
+        assertEquals("application/pdf",
+                documentService.download(projectId, documentId, member.getEmail()).contentType());
+        assertEquals("application/pdf",
+                documentService.preview(projectId, documentId, member.getEmail()).contentType());
+    }
+
+    @Test
+    void unsupportedTypeCannotBePreviewed() {
+        arrangeMember(member);
+        Document document = new Document(documentId, project, uploader, "Sheet", null,
+                "sheet.xlsx", "projects/key.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 5);
+        arrangeActiveDocument(document);
+
+        assertThrows(UnsupportedPreviewTypeException.class,
+                () -> documentService.preview(projectId, documentId, member.getEmail()));
+        verify(storageService, never()).download(any());
     }
 
     @Test
@@ -277,19 +330,14 @@ class DocumentServiceTests {
         )).thenReturn(Optional.of(document));
     }
 
-    private CreateDocumentRequest createRequest() {
-        return new CreateDocumentRequest(
-                " Architecture Guide ",
-                " System architecture ",
-                " architecture.pdf ",
-                " projects/key.pdf ",
-                " application/pdf ",
-                123456
-        );
+    private MockMultipartFile file() {
+        return new MockMultipartFile("file", "architecture.pdf", "application/pdf",
+                new byte[]{1, 2, 3});
     }
 
     private Document document(User uploadedBy) {
         return new Document(
+                documentId,
                 project,
                 uploadedBy,
                 "Architecture Guide",

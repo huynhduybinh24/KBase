@@ -7,8 +7,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -24,7 +22,6 @@ import java.util.UUID;
 public class Document {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -69,6 +66,7 @@ public class Document {
     }
 
     public Document(
+            UUID id,
             Project project,
             User uploadedBy,
             String title,
@@ -78,6 +76,7 @@ public class Document {
             String contentType,
             long fileSize
     ) {
+        this.id = id;
         this.project = project;
         this.uploadedBy = uploadedBy;
         this.title = title;

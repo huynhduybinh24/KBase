@@ -8,6 +8,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import jakarta.validation.ConstraintViolationException;
+import com.kbase.backend.storage.StorageException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -62,6 +65,41 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return error(HttpStatus.CONFLICT, exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler({FileTooLargeException.class, MaxUploadSizeExceededException.class})
+    public ResponseEntity<ApiError> handleFileTooLarge(
+            Exception exception,
+            HttpServletRequest request
+    ) {
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, "File exceeds the configured maximum size",
+                request, Map.of());
+    }
+
+    @ExceptionHandler(UnsupportedPreviewTypeException.class)
+    public ResponseEntity<ApiError> handleUnsupportedPreview(
+            UnsupportedPreviewTypeException exception,
+            HttpServletRequest request
+    ) {
+        return error(HttpStatus.UNSUPPORTED_MEDIA_TYPE, exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler(StorageException.class)
+    public ResponseEntity<ApiError> handleStorageFailure(HttpServletRequest request) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "Object storage is unavailable", request,
+                Map.of());
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiError> handleConstraintViolation(
+            ConstraintViolationException exception,
+            HttpServletRequest request
+    ) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        exception.getConstraintViolations().forEach(violation ->
+                errors.putIfAbsent(violation.getPropertyPath().toString(),
+                        violation.getMessage()));
+        return error(HttpStatus.BAD_REQUEST, "Request validation failed", request, errors);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
