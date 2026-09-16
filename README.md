@@ -15,9 +15,11 @@ The defaults in `src/main/resources/application.properties` target a local Postg
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `DB_URL` | `jdbc:postgresql://localhost:5432/kbase` | JDBC connection URL |
-| `DB_USERNAME` | `postgres` | Database user |
-| `DB_PASSWORD` | `postgres` | Database password |
+| `DB_USERNAME` | Required | Database user |
+| `DB_PASSWORD` | Required | Database password |
 | `JPA_DDL_AUTO` | `validate` | Hibernate schema action |
+| `JWT_SECRET` | Required | JWT signing key (Base64, at least 256 bits) |
+| `JWT_EXPIRATION_MS` | `3600000` | Access-token lifetime in milliseconds |
 
 For local development, create the database before starting the application:
 
@@ -34,7 +36,23 @@ mvn spring-boot:run
 
 Once the application is running, the OpenAPI document is available at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`.
 
-Spring Security is included but intentionally has no custom authentication or authorization configuration yet. Spring Boot's default security behavior therefore applies.
+Flyway applies the PostgreSQL schema migrations when the application starts.
+
+## Authentication
+
+| Method | Endpoint | Authentication | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/auth/register` | Public | Register a new account with the `USER` role |
+| `POST` | `/api/auth/login` | Public | Authenticate and receive a JWT access token |
+| `GET` | `/api/users/me` | Bearer JWT | Return the currently authenticated user |
+
+Send the returned token to protected endpoints using:
+
+```http
+Authorization: Bearer <access-token>
+```
+
+The supported roles are `ADMIN`, `OWNER`, and `USER`. Public registration always assigns `USER`; privileged roles must be assigned through a controlled administrative workflow.
 
 ## Project structure
 
