@@ -54,6 +54,21 @@ Authorization: Bearer <access-token>
 
 The supported roles are `ADMIN`, `OWNER`, and `USER`. Public registration always assigns `USER`; privileged roles must be assigned through a controlled administrative workflow.
 
+## Projects
+
+All project endpoints require a Bearer JWT.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/projects` | Create a project |
+| `GET` | `/api/projects` | List accessible projects |
+| `GET` | `/api/projects/{projectId}` | Get a project as a member |
+| `PUT` | `/api/projects/{projectId}` | Update a project as its owner |
+| `DELETE` | `/api/projects/{projectId}` | Delete a project as its owner |
+| `GET` | `/api/projects/{projectId}/members` | List project members |
+| `POST` | `/api/projects/{projectId}/members` | Add a member by email as owner |
+| `DELETE` | `/api/projects/{projectId}/members/{userId}` | Remove a non-owner member as owner |
+
 ## Project structure
 
 ```text
