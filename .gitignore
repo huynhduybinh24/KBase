@@ -1,9 +1,16 @@
 HELP.md
+
+### Backend ###
 target/
 .m2/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+
+### Frontend ###
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
 
 ### IntelliJ IDEA ###
 .idea/
@@ -23,7 +30,6 @@ target/
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
-/dist/
 /nbdist/
 /.nb-gradle/
 
@@ -39,3 +45,4 @@ Thumbs.db
 .env.*
 !.env.example
 application-local.properties
+*.log

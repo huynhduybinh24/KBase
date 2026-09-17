@@ -1,17 +1,82 @@
-# KBase Backend
+# KBase
 
-Backend service for KBase, built with Java 21, Maven, Spring Boot, and PostgreSQL.
+A full-stack knowledge base platform — grounded RAG chat, document management, and semantic search — built with Spring Boot and React.
 
-## Prerequisites
+## Repository structure
+
+```
+KBase/
+├── backend/    Spring Boot REST API (Java 21, Maven, PostgreSQL/pgvector, MinIO)
+├── frontend/   React/Vite frontend (TypeScript, Tailwind CSS)
+├── compose.yaml        Full local development stack
+└── .env.example        Environment variable reference (safe development defaults)
+```
+
+## Quick start — full stack
+
+Copy `.env.example` to `.env`, adjust credentials if needed, then from the repository root run:
+
+```shell
+docker compose up -d --build
+docker compose ps
+```
+
+The backend is exposed on `8080`, PostgreSQL on configurable port `5433`, the MinIO
+API on `9000`, and the MinIO console on `9001`. PostgreSQL and MinIO use named volumes.
+Stop without deleting those volumes using:
+
+```shell
+docker compose down
+```
+
+Compose defaults are development-only. Production deployments must supply strong
+database, JWT, and MinIO credentials through their secret-management environment.
+
+---
+
+## Backend
+
+Built with Java 21, Maven, Spring Boot, and PostgreSQL/pgvector.
+
+### Prerequisites
 
 - Java 21
 - Maven 3.9+
 - PostgreSQL
 - MinIO (or another S3-compatible object store)
 
-## Configuration
+### Local development
 
-The defaults in `src/main/resources/application.properties` target a local PostgreSQL database named `kbase`. For other environments, set:
+```shell
+cd backend
+mvn spring-boot:run
+```
+
+For local development, create the PostgreSQL database before starting the application:
+
+```sql
+CREATE DATABASE kbase;
+```
+
+Flyway applies the PostgreSQL schema migrations when the application starts.
+
+Once running, the OpenAPI document is available at `/v3/api-docs` and Swagger UI at `/swagger-ui/index.html`.
+
+### Tests
+
+```shell
+cd backend
+mvn clean test
+```
+
+```shell
+cd backend
+mvn clean verify
+```
+
+### Configuration
+
+The defaults in `backend/src/main/resources/application.properties` target a local PostgreSQL database named `kbase`. For other environments, set:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -49,43 +114,7 @@ The defaults in `src/main/resources/application.properties` target a local Postg
 | `LLM_MAX_OUTPUT_TOKENS` | `800` | Provider output limit |
 | `LLM_TIMEOUT_SECONDS` | `60` | Connect and response timeout |
 
-For local development, create the database before starting the application:
-
-```sql
-CREATE DATABASE kbase;
-```
-
-## Build and run
-
-```shell
-mvn clean verify
-mvn spring-boot:run
-```
-
-Once the application is running, the OpenAPI document is available at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`.
-
-Flyway applies the PostgreSQL schema migrations when the application starts.
-
-For the complete local development stack, copy `.env.example` to `.env`, adjust the
-development credentials, and run:
-
-```shell
-docker compose up -d --build
-docker compose ps
-```
-
-The backend is exposed on `8080`, PostgreSQL on configurable port `5433`, the MinIO
-API on `9000`, and the MinIO console on `9001`. PostgreSQL and MinIO use named volumes.
-Stop without deleting those volumes using:
-
-```shell
-docker compose down
-```
-
-Compose defaults are development-only. Production deployments must supply strong
-database, JWT, and MinIO credentials through their secret-management environment.
-
-## Operational hardening
+### Operational hardening
 
 `GET /actuator/health` and `GET /actuator/info` are public; no other actuator endpoint
 is exposed. Health includes PostgreSQL and MinIO availability but suppresses component
@@ -102,7 +131,7 @@ It is appropriate for a single backend instance only; use a shared limiter for h
 scaling. Oversized questions are rejected before persistence, retrieval, or provider use.
 Upload size is enforced by both servlet multipart parsing and application validation.
 
-## Authentication
+### Authentication
 
 | Method | Endpoint | Authentication | Description |
 | --- | --- | --- | --- |
@@ -118,7 +147,7 @@ Authorization: Bearer <access-token>
 
 The supported roles are `ADMIN`, `OWNER`, and `USER`. Public registration always assigns `USER`; privileged roles must be assigned through a controlled administrative workflow.
 
-## Projects
+### Projects
 
 All project endpoints require a Bearer JWT.
 
@@ -133,7 +162,7 @@ All project endpoints require a Bearer JWT.
 | `POST` | `/api/projects/{projectId}/members` | Add a member by email as owner |
 | `DELETE` | `/api/projects/{projectId}/members/{userId}` | Remove a non-owner member as owner |
 
-## Documents
+### Documents
 
 Document metadata is stored in PostgreSQL and file bytes are stored in MinIO. All endpoints require a Bearer JWT and project membership. Uploads accept `multipart/form-data` fields named `file`, `title`, and optional `description`.
 
@@ -170,7 +199,7 @@ The default `dev` embedding provider is deterministic hashing for local tests on
 not a production semantic model. Set `EMBEDDING_PROVIDER=openai-compatible` and supply the
 provider URL, key, and model to use a production embeddings endpoint.
 
-## Grounded project chat
+### Grounded project chat
 
 All chat endpoints require project membership, and sessions are private to their creator.
 Project owners do not receive access to another member's chat history.
@@ -192,16 +221,47 @@ service and is only for pipeline testing, not real language quality. Set `LLM_PR
 `openai-compatible` for a production provider. Chat generation and embedding providers remain
 independently configured.
 
-## Project structure
+### Backend project structure
 
 ```text
-src/
-├── main/
-│   ├── java/com/kbase/backend/
-│   │   └── KBaseApplication.java
-│   └── resources/
-│       └── application.properties
-└── test/
-    └── java/com/kbase/backend/
-        └── KBaseApplicationTests.java
+backend/
+├── pom.xml
+├── Dockerfile
+├── .dockerignore
+├── .mvn/
+│   └── maven.config
+└── src/
+    ├── main/
+    │   ├── java/com/kbase/backend/
+    │   └── resources/
+    │       ├── application.properties
+    │       └── db/migration/          Flyway migrations V1–V6
+    └── test/
+        └── java/com/kbase/backend/
+```
+
+---
+
+## Frontend
+
+Built with React 19, Vite, TypeScript, and Tailwind CSS.
+
+### Local development
+
+```shell
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend runs at `http://localhost:5173`. Set `VITE_API_BASE_URL` in a local `.env`
+when the backend is not at `http://localhost:8080`. Swagger is available at
+`http://localhost:8080/swagger-ui/index.html`.
+
+### Tests and build
+
+```shell
+cd frontend
+npm run test
+npm run build
 ```

@@ -34,7 +34,7 @@ services:
 
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     environment:
       DB_URL: jdbc:postgresql://pgvector:5432/${PGVECTOR_DB:-kbase}
