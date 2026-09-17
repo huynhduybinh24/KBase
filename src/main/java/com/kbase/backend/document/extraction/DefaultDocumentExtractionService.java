@@ -12,9 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.InputStream;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class DefaultDocumentExtractionService implements DocumentExtractionService {
+    private static final Logger log = LoggerFactory.getLogger(DefaultDocumentExtractionService.class);
 
     private final DocumentContentRepository repository;
     private final StorageService storageService;
@@ -78,6 +81,8 @@ public class DefaultDocumentExtractionService implements DocumentExtractionServi
         try (InputStream input = storageService.download(document.getStorageKey())) {
             content.markCompleted(extractor.extract(input));
         } catch (Exception exception) {
+            log.warn("Document extraction failed document={} reason={}", document.getId(),
+                    exception.getClass().getSimpleName());
             content.markFailed();
         }
         repository.saveAndFlush(content);

@@ -98,6 +98,7 @@ public class ChatController {
     @Operation(summary = "Ask the grounded project assistant")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Assistant answer with structured sources"),
+            @ApiResponse(responseCode = "429", description = "Per-user chat rate limit exceeded"),
             @ApiResponse(responseCode = "503", description = "Embedding or language model provider unavailable")
     })
     public ChatMessageResponse ask(

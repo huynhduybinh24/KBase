@@ -30,9 +30,12 @@ import java.io.InputStream;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class DocumentService {
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     private final DocumentRepository documentRepository;
     private final ProjectRepository projectRepository;
@@ -103,11 +106,15 @@ public class DocumentService {
         try {
             Document saved = documentRepository.saveAndFlush(document);
             extractionService.initializeAndExtract(saved);
+            log.info("Document upload completed project={} document={} size={} contentType={}",
+                    projectId, saved.getId(), validated.size(), validated.contentType());
             return DocumentResponse.from(saved);
         } catch (DataIntegrityViolationException exception) {
             rollbackUpload(storageKey, exception);
             throw new ConflictException("Storage key already exists");
         } catch (RuntimeException exception) {
+            log.warn("Document upload failed project={} document={} reason={}", projectId,
+                    documentId, exception.getClass().getSimpleName());
             rollbackUpload(storageKey, exception);
             throw exception;
         }

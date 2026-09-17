@@ -15,9 +15,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private static final String BEARER_PREFIX = "Bearer ";
 
@@ -62,7 +65,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
-        } catch (JwtException | AuthenticationException | IllegalArgumentException ignored) {
+        } catch (JwtException | AuthenticationException | IllegalArgumentException exception) {
+            log.warn("JWT authentication rejected path={} reason={}", request.getRequestURI(),
+                    exception.getClass().getSimpleName());
             // Invalid and expired tokens remain unauthenticated and are handled by Spring Security.
         }
     }

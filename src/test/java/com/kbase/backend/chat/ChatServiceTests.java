@@ -1,6 +1,7 @@
 package com.kbase.backend.chat;
 
 import com.kbase.backend.chat.dto.ChatMessageResponse;
+import com.kbase.backend.config.ChatProtectionProperties;
 import com.kbase.backend.rag.chat.ChatRagProperties;
 import com.kbase.backend.rag.chat.RagPromptBuilder;
 import com.kbase.backend.rag.llm.LlmProperties;
@@ -16,6 +17,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
+import com.kbase.backend.user.User;
+import com.kbase.backend.user.UserRepository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -31,6 +35,8 @@ class ChatServiceTests {
     private SemanticSearchService search;
     private LlmService llm;
     private ChatService service;
+    private ChatRateLimiter rateLimiter;
+    private UserRepository users;
     private UUID projectId;
     private UUID sessionId;
 
@@ -39,9 +45,15 @@ class ChatServiceTests {
         persistence = mock(ChatPersistenceService.class);
         search = mock(SemanticSearchService.class);
         llm = mock(LlmService.class);
+        rateLimiter = mock(ChatRateLimiter.class);
+        users = mock(UserRepository.class);
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(UUID.randomUUID());
+        when(users.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.of(user));
         ChatRagProperties properties = new ChatRagProperties(5, 10, 5, 2000);
         service = new ChatService(persistence, search,
-                new RagPromptBuilder(properties), llm, properties);
+                new RagPromptBuilder(properties), llm, properties,
+                new ChatProtectionProperties(4000, 10, 60), rateLimiter, users);
         projectId = UUID.randomUUID();
         sessionId = UUID.randomUUID();
         when(persistence.recentHistory(any(), any(), any(Integer.class), any()))
@@ -71,6 +83,20 @@ class ChatServiceTests {
         verify(persistence).saveAssistantMessage(projectId, sessionId,
                 new LlmResponse("Grounded answer", "dev", 10, 3),
                 List.of(result), "user@example.com");
+    }
+
+    @Test
+    void rejectsOversizedMessageBeforeRetrievalOrProviderCall() {
+        service = new ChatService(persistence, search,
+                new RagPromptBuilder(new ChatRagProperties(5, 10, 5, 2000)), llm,
+                new ChatRagProperties(5, 10, 5, 2000),
+                new ChatProtectionProperties(5, 10, 60), rateLimiter, users);
+
+        assertThrows(com.kbase.backend.exception.BadRequestException.class,
+                () -> service.ask(projectId, sessionId, "123456", "user@example.com"));
+        verify(search, never()).search(any(), any(), any(Integer.class), any(), any());
+        verify(llm, never()).generate(any());
+        verify(persistence, never()).saveUserMessage(any(), any(), any(), any());
     }
 
     @Test

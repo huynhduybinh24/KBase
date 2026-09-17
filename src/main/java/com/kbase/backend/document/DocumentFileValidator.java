@@ -2,6 +2,7 @@ package com.kbase.backend.document;
 
 import com.kbase.backend.exception.BadRequestException;
 import com.kbase.backend.exception.FileTooLargeException;
+import com.kbase.backend.exception.UnsupportedMediaTypeException;
 import com.kbase.backend.storage.StorageProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
@@ -54,7 +55,7 @@ public class DocumentFileValidator {
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(
                 contentType.toLowerCase(Locale.ROOT))) {
-            throw new BadRequestException("Unsupported file content type");
+            throw new UnsupportedMediaTypeException("Unsupported file content type");
         }
 
         String safeName = originalName.replaceAll("[^A-Za-z0-9._-]", "_");

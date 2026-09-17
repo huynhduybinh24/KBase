@@ -2,6 +2,7 @@ package com.kbase.backend.document;
 
 import com.kbase.backend.exception.BadRequestException;
 import com.kbase.backend.exception.FileTooLargeException;
+import com.kbase.backend.exception.UnsupportedMediaTypeException;
 import com.kbase.backend.storage.StorageProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
@@ -36,7 +37,7 @@ class DocumentValidationTests {
     void rejectsPathTraversalAndUnsupportedContentType() {
         assertThrows(BadRequestException.class,
                 () -> validator.validate(file("../guide.pdf", "application/pdf", new byte[]{1})));
-        assertThrows(BadRequestException.class,
+        assertThrows(UnsupportedMediaTypeException.class,
                 () -> validator.validate(file("guide.exe", "application/octet-stream", new byte[]{1})));
     }
 

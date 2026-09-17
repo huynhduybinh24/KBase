@@ -20,12 +20,16 @@ The defaults in `src/main/resources/application.properties` target a local Postg
 | `DB_PASSWORD` | Required | Database password |
 | `JPA_DDL_AUTO` | `validate` | Hibernate schema action |
 | `JWT_SECRET` | Required | JWT signing key (Base64, at least 256 bits) |
-| `JWT_EXPIRATION_MS` | `3600000` | Access-token lifetime in milliseconds |
+| `JWT_EXPIRATION_SECONDS` | `3600` | Access-token lifetime; legacy `JWT_EXPIRATION_MS` is also accepted |
 | `MINIO_ENDPOINT` | `http://localhost:9000` | S3-compatible API endpoint |
 | `MINIO_ACCESS_KEY` | Required | Object-storage access key |
 | `MINIO_SECRET_KEY` | Required | Object-storage secret key |
 | `MINIO_BUCKET` | `kbase-documents` | Document bucket, created on first upload if absent |
-| `MAX_UPLOAD_SIZE` | `52428800` | Application upload limit in bytes (50 MiB) |
+| `DOCUMENT_MAX_FILE_SIZE_BYTES` | `52428800` | Application and multipart upload limit (50 MiB) |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated explicit frontend origins |
+| `CHAT_MAX_MESSAGE_CHARS` | `4000` | Maximum question length before retrieval/provider calls |
+| `CHAT_RATE_LIMIT_REQUESTS` | `10` | Chat requests allowed per authenticated user/window |
+| `CHAT_RATE_LIMIT_WINDOW_SECONDS` | `60` | In-memory chat rate-limit window |
 | `RAG_CHUNK_SIZE` | `800` | Approximate tokens per chunk |
 | `RAG_CHUNK_OVERLAP` | `100` | Approximate overlapping tokens |
 | `EMBEDDING_PROVIDER` | `dev` | `dev` or `openai-compatible` |
@@ -62,26 +66,41 @@ Once the application is running, the OpenAPI document is available at `/v3/api-d
 
 Flyway applies the PostgreSQL schema migrations when the application starts.
 
-For local MinIO, set matching credentials and start the provided service:
+For the complete local development stack, copy `.env.example` to `.env`, adjust the
+development credentials, and run:
 
 ```shell
-docker compose up -d minio
+docker compose up -d --build
+docker compose ps
 ```
 
-The S3 API is exposed on port `9000` and the MinIO console on port `9001`. With
-the Compose defaults, use `MINIO_ACCESS_KEY=minioadmin` and
-`MINIO_SECRET_KEY=minioadmin123` for the backend. Production deployments must
-provide strong secrets rather than these local-development defaults.
-
-For a pgvector-enabled development database on port `5433`:
+The backend is exposed on `8080`, PostgreSQL on configurable port `5433`, the MinIO
+API on `9000`, and the MinIO console on `9001`. PostgreSQL and MinIO use named volumes.
+Stop without deleting those volumes using:
 
 ```shell
-docker compose up -d pgvector
+docker compose down
 ```
 
-Set `DB_URL=jdbc:postgresql://localhost:5433/kbase`, `DB_USERNAME=kbase`, and
-`DB_PASSWORD` to the configured `PGVECTOR_PASSWORD`. The Compose password is a
-development fallback only and must be overridden outside local development.
+Compose defaults are development-only. Production deployments must supply strong
+database, JWT, and MinIO credentials through their secret-management environment.
+
+## Operational hardening
+
+`GET /actuator/health` and `GET /actuator/info` are public; no other actuator endpoint
+is exposed. Health includes PostgreSQL and MinIO availability but suppresses component
+details. API responses carry `X-Request-ID`; a safe client-supplied value is propagated,
+otherwise one is generated and added to log MDC.
+
+CORS allows only configured explicit origins, credentials, `Authorization`,
+`Content-Type`, `X-Request-ID`, and GET/POST/PUT/DELETE/OPTIONS. Spring Security sends
+standardized JSON for 401/403 and includes no-store, content-type, same-origin frame,
+and no-referrer headers. Swagger remains public in the development configuration.
+
+Chat generation is protected by a configurable per-user fixed-window in-memory limiter.
+It is appropriate for a single backend instance only; use a shared limiter for horizontal
+scaling. Oversized questions are rejected before persistence, retrieval, or provider use.
+Upload size is enforced by both servlet multipart parsing and application validation.
 
 ## Authentication
 

@@ -18,9 +18,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class DefaultDocumentChunkService implements DocumentChunkService {
+    private static final Logger log = LoggerFactory.getLogger(DefaultDocumentChunkService.class);
 
     private final DocumentContentRepository contentRepository;
     private final DocumentChunkRepository chunkRepository;
@@ -81,6 +84,8 @@ public class DefaultDocumentChunkService implements DocumentChunkService {
             chunkRepository.replace(document.getId(), chunks);
             content.markIndexingCompleted();
         } catch (Exception exception) {
+            log.warn("Document indexing failed document={} reason={}", document.getId(),
+                    exception.getClass().getSimpleName());
             chunkRepository.deleteByDocumentId(document.getId());
             content.markIndexingFailed();
         }

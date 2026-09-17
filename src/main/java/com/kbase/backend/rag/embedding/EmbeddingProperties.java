@@ -1,13 +1,17 @@
 package com.kbase.backend.rag.embedding;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
 
 @ConfigurationProperties(prefix = "app.embedding")
+@Validated
 public record EmbeddingProperties(
-        String provider,
-        String baseUrl,
+        @NotBlank String provider,
+        @NotBlank String baseUrl,
         String apiKey,
-        String model,
-        int dimension
+        @NotBlank String model,
+        @Positive int dimension
 ) {
 }

@@ -11,9 +11,11 @@ public class MinioConfig {
 
     @Bean
     MinioClient minioClient(StorageProperties properties) {
-        return MinioClient.builder()
+        MinioClient client = MinioClient.builder()
                 .endpoint(properties.endpoint())
                 .credentials(properties.accessKey(), properties.secretKey())
                 .build();
+        client.setTimeout(5_000, 5_000, 5_000);
+        return client;
     }
 }
