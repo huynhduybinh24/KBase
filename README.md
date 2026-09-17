@@ -33,6 +33,17 @@ The defaults in `src/main/resources/application.properties` target a local Postg
 | `EMBEDDING_API_KEY` | Empty | Provider credential; never commit production values |
 | `EMBEDDING_MODEL` | `kbase-dev-hash-v1` | Embedding model identifier |
 | `EMBEDDING_DIMENSION` | `128` | Deterministic DEV embedding dimensions |
+| `RAG_TOP_K` | `5` | Chunks retrieved for each chat question |
+| `RAG_MAX_HISTORY_MESSAGES` | `10` | Recent private-session messages sent to the LLM |
+| `RAG_MAX_CONTEXT_CHUNKS` | `10` | Maximum ranked chunks included in a prompt |
+| `RAG_MAX_CONTEXT_CHARS` | `20000` | Maximum document-context characters per prompt |
+| `LLM_PROVIDER` | `dev` | `dev` or `openai-compatible` |
+| `LLM_BASE_URL` | `http://localhost:11434/v1` | OpenAI-compatible chat API base URL |
+| `LLM_API_KEY` | Empty | Provider credential supplied only through the environment |
+| `LLM_MODEL` | `kbase-dev-context-v1` | Chat model identifier |
+| `LLM_TEMPERATURE` | `0.1` | Production provider sampling temperature |
+| `LLM_MAX_OUTPUT_TOKENS` | `800` | Provider output limit |
+| `LLM_TIMEOUT_SECONDS` | `60` | Connect and response timeout |
 
 For local development, create the database before starting the application:
 
@@ -138,8 +149,29 @@ model and dimensions are configurable.
 
 The default `dev` embedding provider is deterministic hashing for local tests only. It is
 not a production semantic model. Set `EMBEDDING_PROVIDER=openai-compatible` and supply the
-provider URL, key, and model to use a production embeddings endpoint. No chat-completion or
-answer-generation API is implemented.
+provider URL, key, and model to use a production embeddings endpoint.
+
+## Grounded project chat
+
+All chat endpoints require project membership, and sessions are private to their creator.
+Project owners do not receive access to another member's chat history.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/projects/{projectId}/chat/sessions` | Create a private chat session |
+| `GET` | `/api/projects/{projectId}/chat/sessions` | List the current user's sessions |
+| `GET` | `/api/projects/{projectId}/chat/sessions/{sessionId}` | Get private session metadata |
+| `GET` | `/api/projects/{projectId}/chat/sessions/{sessionId}/messages` | Get chronological messages and structured sources |
+| `POST` | `/api/projects/{projectId}/chat/sessions/{sessionId}/messages` | Ask the grounded project assistant |
+| `DELETE` | `/api/projects/{projectId}/chat/sessions/{sessionId}` | Delete the session and its history |
+
+The prompt builder keeps system instructions separate from retrieved document text, clearly
+delimits every untrusted context chunk, limits history and context size, and preserves the
+highest-ranked chunks first. With no usable context, KBase returns a fixed insufficient-context
+answer without calling the LLM. The deterministic DEV provider never contacts an external
+service and is only for pipeline testing, not real language quality. Set `LLM_PROVIDER` to
+`openai-compatible` for a production provider. Chat generation and embedding providers remain
+independently configured.
 
 ## Project structure
 

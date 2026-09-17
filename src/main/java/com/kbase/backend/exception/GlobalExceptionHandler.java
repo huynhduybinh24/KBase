@@ -13,6 +13,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import jakarta.validation.ConstraintViolationException;
 import com.kbase.backend.storage.StorageException;
 import com.kbase.backend.rag.embedding.EmbeddingUnavailableException;
+import com.kbase.backend.rag.llm.LlmUnavailableException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -96,6 +97,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleEmbeddingFailure(HttpServletRequest request) {
         return error(HttpStatus.SERVICE_UNAVAILABLE, "Embedding provider is unavailable", request,
                 Map.of());
+    }
+
+    @ExceptionHandler(LlmUnavailableException.class)
+    public ResponseEntity<ApiError> handleLlmFailure(HttpServletRequest request) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE,
+                "Language model provider is unavailable", request, Map.of());
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
