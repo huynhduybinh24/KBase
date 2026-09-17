@@ -133,6 +133,21 @@ public class DocumentController {
         return documentService.retryExtraction(projectId, documentId, principal.getUsername());
     }
 
+    @PostMapping("/{documentId}/index")
+    @Operation(summary = "Rebuild chunks and embeddings",
+            description = "Available to the uploader or project owner after successful extraction.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Index rebuilt or safely marked failed"),
+            @ApiResponse(responseCode = "409", description = "Extraction incomplete or indexing in progress")
+    })
+    public DocumentContentResponse reindex(
+            @PathVariable UUID projectId,
+            @PathVariable UUID documentId,
+            @AuthenticationPrincipal UserDetails principal
+    ) {
+        return documentService.reindex(projectId, documentId, principal.getUsername());
+    }
+
     @GetMapping("/{documentId}/download")
     @Operation(summary = "Download a document", description = "Returns the stored object as an attachment")
     @ApiResponses({

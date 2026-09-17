@@ -5,6 +5,7 @@ import com.kbase.backend.document.dto.DocumentPageResponse;
 import com.kbase.backend.document.dto.UpdateDocumentRequest;
 import com.kbase.backend.document.extraction.DocumentExtractionService;
 import com.kbase.backend.document.extraction.dto.DocumentContentResponse;
+import com.kbase.backend.document.chunk.DocumentChunkService;
 import com.kbase.backend.exception.ConflictException;
 import com.kbase.backend.exception.ForbiddenException;
 import com.kbase.backend.exception.InvalidCredentialsException;
@@ -40,6 +41,7 @@ public class DocumentService {
     private final StorageService storageService;
     private final DocumentFileValidator fileValidator;
     private final DocumentExtractionService extractionService;
+    private final DocumentChunkService chunkService;
 
     private static final java.util.Set<String> PREVIEWABLE_TYPES = java.util.Set.of(
             "application/pdf", "image/png", "image/jpeg", "text/plain"
@@ -52,7 +54,8 @@ public class DocumentService {
             UserRepository userRepository,
             StorageService storageService,
             DocumentFileValidator fileValidator,
-            DocumentExtractionService extractionService
+            DocumentExtractionService extractionService,
+            DocumentChunkService chunkService
     ) {
         this.documentRepository = documentRepository;
         this.projectRepository = projectRepository;
@@ -61,6 +64,7 @@ public class DocumentService {
         this.storageService = storageService;
         this.fileValidator = fileValidator;
         this.extractionService = extractionService;
+        this.chunkService = chunkService;
     }
 
     @Transactional
@@ -152,6 +156,16 @@ public class DocumentService {
         Document document = activeDocument(projectId, documentId);
         requireUploaderOrOwner(document, context);
         return extractionService.retry(document);
+    }
+
+    @Transactional
+    public DocumentContentResponse reindex(
+            UUID projectId, UUID documentId, String authenticatedEmail
+    ) {
+        AccessContext context = requireProjectMember(projectId, authenticatedEmail);
+        Document document = activeDocument(projectId, documentId);
+        requireUploaderOrOwner(document, context);
+        return chunkService.reindex(document);
     }
 
     @Transactional(readOnly = true)

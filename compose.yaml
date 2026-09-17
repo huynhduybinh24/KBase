@@ -1,4 +1,15 @@
 services:
+  pgvector:
+    image: pgvector/pgvector:0.8.6-pg18
+    environment:
+      POSTGRES_DB: ${PGVECTOR_DB:-kbase}
+      POSTGRES_USER: ${PGVECTOR_USER:-kbase}
+      POSTGRES_PASSWORD: ${PGVECTOR_PASSWORD:-kbase-dev-password}
+    ports:
+      - "${PGVECTOR_PORT:-5433}:5432"
+    volumes:
+      - pgvector-data:/var/lib/postgresql/data
+
   minio:
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
@@ -12,4 +23,5 @@ services:
       - minio-data:/data
 
 volumes:
+  pgvector-data:
   minio-data:

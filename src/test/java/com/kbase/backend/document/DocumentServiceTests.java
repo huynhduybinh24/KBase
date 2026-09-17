@@ -2,6 +2,7 @@ package com.kbase.backend.document;
 
 import com.kbase.backend.document.dto.UpdateDocumentRequest;
 import com.kbase.backend.document.extraction.DocumentExtractionService;
+import com.kbase.backend.document.chunk.DocumentChunkService;
 import com.kbase.backend.exception.ForbiddenException;
 import com.kbase.backend.exception.ResourceNotFoundException;
 import com.kbase.backend.exception.UnsupportedPreviewTypeException;
@@ -42,6 +43,7 @@ class DocumentServiceTests {
     private UserRepository userRepository;
     private StorageService storageService;
     private DocumentExtractionService extractionService;
+    private DocumentChunkService chunkService;
     private DocumentService documentService;
 
     private UUID projectId;
@@ -60,6 +62,7 @@ class DocumentServiceTests {
         userRepository = mock(UserRepository.class);
         storageService = mock(StorageService.class);
         extractionService = mock(DocumentExtractionService.class);
+        chunkService = mock(DocumentChunkService.class);
         documentService = new DocumentService(
                 documentRepository,
                 projectRepository,
@@ -68,7 +71,8 @@ class DocumentServiceTests {
                 storageService,
                 new DocumentFileValidator(new StorageProperties(
                         "http://localhost:9000", "key", "secret", "bucket", 1024)),
-                extractionService
+                extractionService,
+                chunkService
         );
 
         projectId = UUID.randomUUID();
@@ -392,6 +396,24 @@ class DocumentServiceTests {
         arrangeMember(owner);
         documentService.retryExtraction(projectId, documentId, owner.getEmail());
         verify(extractionService).retry(document);
+    }
+
+    @Test
+    void onlyUploaderOrOwnerCanReindexAndDeletedDocumentIsNotIndexable() {
+        arrangeMember(member);
+        Document document = document(uploader);
+        arrangeActiveDocument(document);
+        assertThrows(ForbiddenException.class,
+                () -> documentService.reindex(projectId, documentId, member.getEmail()));
+
+        arrangeMember(owner);
+        documentService.reindex(projectId, documentId, owner.getEmail());
+        verify(chunkService).reindex(document);
+
+        when(documentRepository.findByIdAndProjectIdAndStatus(
+                documentId, projectId, DocumentStatus.ACTIVE)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class,
+                () -> documentService.reindex(projectId, documentId, owner.getEmail()));
     }
 
     private void arrangeMember(User user) {

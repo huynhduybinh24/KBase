@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import jakarta.validation.ConstraintViolationException;
 import com.kbase.backend.storage.StorageException;
+import com.kbase.backend.rag.embedding.EmbeddingUnavailableException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -88,6 +89,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(StorageException.class)
     public ResponseEntity<ApiError> handleStorageFailure(HttpServletRequest request) {
         return error(HttpStatus.SERVICE_UNAVAILABLE, "Object storage is unavailable", request,
+                Map.of());
+    }
+
+    @ExceptionHandler(EmbeddingUnavailableException.class)
+    public ResponseEntity<ApiError> handleEmbeddingFailure(HttpServletRequest request) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "Embedding provider is unavailable", request,
                 Map.of());
     }
 

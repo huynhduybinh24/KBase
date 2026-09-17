@@ -26,6 +26,13 @@ The defaults in `src/main/resources/application.properties` target a local Postg
 | `MINIO_SECRET_KEY` | Required | Object-storage secret key |
 | `MINIO_BUCKET` | `kbase-documents` | Document bucket, created on first upload if absent |
 | `MAX_UPLOAD_SIZE` | `52428800` | Application upload limit in bytes (50 MiB) |
+| `RAG_CHUNK_SIZE` | `800` | Approximate tokens per chunk |
+| `RAG_CHUNK_OVERLAP` | `100` | Approximate overlapping tokens |
+| `EMBEDDING_PROVIDER` | `dev` | `dev` or `openai-compatible` |
+| `EMBEDDING_BASE_URL` | `http://localhost:11434/v1` | OpenAI-compatible provider base URL |
+| `EMBEDDING_API_KEY` | Empty | Provider credential; never commit production values |
+| `EMBEDDING_MODEL` | `kbase-dev-hash-v1` | Embedding model identifier |
+| `EMBEDDING_DIMENSION` | `128` | Deterministic DEV embedding dimensions |
 
 For local development, create the database before starting the application:
 
@@ -54,6 +61,16 @@ The S3 API is exposed on port `9000` and the MinIO console on port `9001`. With
 the Compose defaults, use `MINIO_ACCESS_KEY=minioadmin` and
 `MINIO_SECRET_KEY=minioadmin123` for the backend. Production deployments must
 provide strong secrets rather than these local-development defaults.
+
+For a pgvector-enabled development database on port `5433`:
+
+```shell
+docker compose up -d pgvector
+```
+
+Set `DB_URL=jdbc:postgresql://localhost:5433/kbase`, `DB_USERNAME=kbase`, and
+`DB_PASSWORD` to the configured `PGVECTOR_PASSWORD`. The Compose password is a
+development fallback only and must be overridden outside local development.
 
 ## Authentication
 
@@ -101,6 +118,8 @@ Document metadata is stored in PostgreSQL and file bytes are stored in MinIO. Al
 | `DELETE` | `/api/projects/{projectId}/documents/{documentId}` | Soft-delete as uploader or project owner |
 | `GET` | `/api/projects/{projectId}/documents/{documentId}/content` | Read extracted text and extraction status |
 | `POST` | `/api/projects/{projectId}/documents/{documentId}/extract` | Retry extraction as uploader or project owner |
+| `POST` | `/api/projects/{projectId}/documents/{documentId}/index` | Rebuild chunks and embeddings as uploader or project owner |
+| `GET` | `/api/projects/{projectId}/search/semantic` | Retrieve project chunks by cosine similarity |
 
 The document list supports `q`, `contentType`, `uploadedBy`, `from`, `to`, `page`,
 `size`, and `sort` query parameters. Results are always limited to active documents in
@@ -110,6 +129,17 @@ are `createdAt`, `updatedAt`, `title`, and `fileSize`.
 Text extraction runs synchronously after upload and is stored separately from document
 metadata. Plain text, Markdown, PDF, and DOCX are supported. Other allowed upload types
 are retained with an `UNSUPPORTED` extraction status for future processing.
+
+Completed text is deterministically split in order using a conservative four-characters-
+per-token approximation. Paragraph and sentence boundaries are preferred, and configurable
+overlap is retained between chunks. Embeddings are stored in PostgreSQL using pgvector with
+variable dimensions. Exact cosine search is used; no ANN index is created because embedding
+model and dimensions are configurable.
+
+The default `dev` embedding provider is deterministic hashing for local tests only. It is
+not a production semantic model. Set `EMBEDDING_PROVIDER=openai-compatible` and supply the
+provider URL, key, and model to use a production embeddings endpoint. No chat-completion or
+answer-generation API is implemented.
 
 ## Project structure
 

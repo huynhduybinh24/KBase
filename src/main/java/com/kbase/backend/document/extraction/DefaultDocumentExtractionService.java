@@ -5,6 +5,7 @@ import com.kbase.backend.document.extraction.dto.DocumentContentResponse;
 import com.kbase.backend.exception.ConflictException;
 import com.kbase.backend.exception.ResourceNotFoundException;
 import com.kbase.backend.storage.StorageService;
+import com.kbase.backend.document.chunk.DocumentChunkService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,15 +19,18 @@ public class DefaultDocumentExtractionService implements DocumentExtractionServi
     private final DocumentContentRepository repository;
     private final StorageService storageService;
     private final List<TextExtractor> extractors;
+    private final DocumentChunkService chunkService;
 
     public DefaultDocumentExtractionService(
             DocumentContentRepository repository,
             StorageService storageService,
-            List<TextExtractor> extractors
+            List<TextExtractor> extractors,
+            DocumentChunkService chunkService
     ) {
         this.repository = repository;
         this.storageService = storageService;
         this.extractors = extractors;
+        this.chunkService = chunkService;
     }
 
     @Override
@@ -77,5 +81,8 @@ public class DefaultDocumentExtractionService implements DocumentExtractionServi
             content.markFailed();
         }
         repository.saveAndFlush(content);
+        if (content.getExtractionStatus() == ExtractionStatus.COMPLETED) {
+            chunkService.indexAfterExtraction(document, content);
+        }
     }
 }

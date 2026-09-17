@@ -40,6 +40,16 @@ public class DocumentContent {
     @Column(name = "extracted_at")
     private Instant extractedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "indexing_status", nullable = false, length = 20)
+    private IndexingStatus indexingStatus = IndexingStatus.PENDING;
+
+    @Column(name = "indexing_error", columnDefinition = "TEXT")
+    private String indexingError;
+
+    @Column(name = "indexed_at")
+    private Instant indexedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -55,6 +65,7 @@ public class DocumentContent {
         this.id = UUID.randomUUID();
         this.document = document;
         this.extractionStatus = ExtractionStatus.PENDING;
+        this.indexingStatus = IndexingStatus.PENDING;
     }
 
     public void markProcessing() {
@@ -69,6 +80,7 @@ public class DocumentContent {
         extractedText = text;
         extractionError = null;
         extractedAt = Instant.now();
+        resetIndexing();
     }
 
     public void markFailed() {
@@ -85,12 +97,39 @@ public class DocumentContent {
         extractedAt = null;
     }
 
+    public void markIndexingProcessing() {
+        indexingStatus = IndexingStatus.PROCESSING;
+        indexingError = null;
+        indexedAt = null;
+    }
+
+    public void markIndexingCompleted() {
+        indexingStatus = IndexingStatus.COMPLETED;
+        indexingError = null;
+        indexedAt = Instant.now();
+    }
+
+    public void markIndexingFailed() {
+        indexingStatus = IndexingStatus.FAILED;
+        indexingError = "Document indexing failed";
+        indexedAt = null;
+    }
+
+    public void resetIndexing() {
+        indexingStatus = IndexingStatus.PENDING;
+        indexingError = null;
+        indexedAt = null;
+    }
+
     public UUID getId() { return id; }
     public Document getDocument() { return document; }
     public ExtractionStatus getExtractionStatus() { return extractionStatus; }
     public String getExtractedText() { return extractedText; }
     public String getExtractionError() { return extractionError; }
     public Instant getExtractedAt() { return extractedAt; }
+    public IndexingStatus getIndexingStatus() { return indexingStatus; }
+    public String getIndexingError() { return indexingError; }
+    public Instant getIndexedAt() { return indexedAt; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

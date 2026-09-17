@@ -2,6 +2,7 @@ package com.kbase.backend.document.extraction;
 
 import com.kbase.backend.document.Document;
 import com.kbase.backend.storage.StorageService;
+import com.kbase.backend.document.chunk.DocumentChunkService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -23,12 +24,14 @@ class DocumentExtractionServiceTests {
     private DocumentContentRepository repository;
     private StorageService storage;
     private Document document;
+    private DocumentChunkService chunkService;
 
     @BeforeEach
     void setUp() {
         repository = mock(DocumentContentRepository.class);
         storage = mock(StorageService.class);
         document = mock(Document.class);
+        chunkService = mock(DocumentChunkService.class);
         when(document.getId()).thenReturn(UUID.randomUUID());
         when(document.getStorageKey()).thenReturn("projects/key.txt");
         when(repository.saveAndFlush(any(DocumentContent.class)))
@@ -89,7 +92,7 @@ class DocumentExtractionServiceTests {
     }
 
     private DefaultDocumentExtractionService service(List<TextExtractor> extractors) {
-        return new DefaultDocumentExtractionService(repository, storage, extractors);
+        return new DefaultDocumentExtractionService(repository, storage, extractors, chunkService);
     }
 
     private DocumentContent captureSavedContent() {
