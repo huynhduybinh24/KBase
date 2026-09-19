@@ -4,6 +4,8 @@ import { AppLayout } from '../components/layout/AppLayout'
 import { DashboardPage } from '../pages/DashboardPage'
 import { LoginPage } from '../pages/LoginPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
+import { ProjectDetailPage } from '../pages/ProjectDetailPage'
+import { ProjectsPage } from '../pages/ProjectsPage'
 import { RegisterPage } from '../pages/RegisterPage'
 
 export const routes: RouteObject[] = [
@@ -20,7 +22,11 @@ export const routes: RouteObject[] = [
     children: [
       {
         element: <AppLayout />,
-        children: [{ path: '/dashboard', element: <DashboardPage /> }],
+        children: [
+          { path: '/dashboard', element: <DashboardPage /> },
+          { path: '/projects', element: <ProjectsPage /> },
+          { path: '/projects/:projectId', element: <ProjectDetailPage /> },
+        ],
       },
     ],
   },

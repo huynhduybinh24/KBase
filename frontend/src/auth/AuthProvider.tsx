@@ -10,6 +10,7 @@ export interface AuthContextValue {
   isLoading: boolean
   login: (request: LoginRequest) => Promise<void>
   register: (request: RegisterRequest) => Promise<void>
+  googleLogin: (credential: string) => Promise<void>
   logout: () => void
 }
 
@@ -60,14 +61,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authApi.register(request)
   }, [])
 
+  const googleLogin = useCallback(async (credential: string) => {
+    const response = await authApi.googleLogin(credential)
+    setAccessToken(response.accessToken)
+    setUser(response.user)
+  }, [])
+
   const value = useMemo<AuthContextValue>(() => ({
     user,
     isAuthenticated: user !== null,
     isLoading,
     login,
     register,
+    googleLogin,
     logout,
-  }), [user, isLoading, login, register, logout])
+  }), [user, isLoading, login, register, googleLogin, logout])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

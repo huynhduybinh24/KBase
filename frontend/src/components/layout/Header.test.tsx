@@ -10,6 +10,8 @@ describe('Header logout', () => {
       { path: '/dashboard', element: <Header /> },
       { path: '/login', element: <h1>Logged out</h1> },
     ], '/dashboard', authValue({ user: testUser, isAuthenticated: true, logout }))
+    expect(screen.queryByRole('button', { name: 'Log out' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Open account menu' }))
     await userEvent.click(screen.getByRole('button', { name: 'Log out' }))
     expect(logout).toHaveBeenCalledOnce()
     expect(await screen.findByText('Logged out')).toBeInTheDocument()

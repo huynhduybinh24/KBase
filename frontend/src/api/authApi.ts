@@ -11,6 +11,11 @@ export async function register(request: RegisterRequest): Promise<AuthResponse> 
   return response.data
 }
 
+export async function googleLogin(credential: string): Promise<AuthResponse> {
+  const response = await apiClient.post<AuthResponse>('/api/auth/google', { credential })
+  return response.data
+}
+
 export async function getCurrentUser(): Promise<UserResponse> {
   const response = await apiClient.get<UserResponse>('/api/users/me')
   return response.data

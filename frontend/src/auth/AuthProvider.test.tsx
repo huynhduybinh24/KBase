@@ -10,7 +10,7 @@ const user = { id: 'user-id', email: 'person@example.com', roles: ['USER'] }
 
 function Probe() {
   const auth = useAuth()
-  return <><span>{auth.isLoading ? 'loading' : auth.user?.email ?? 'anonymous'}</span><button onClick={auth.logout}>logout</button><button onClick={() => void auth.login({ email: 'person@example.com', password: 'Password123!' })}>login</button></>
+  return <><span>{auth.isLoading ? 'loading' : auth.user?.email ?? 'anonymous'}</span><button onClick={auth.logout}>logout</button><button onClick={() => void auth.login({ email: 'person@example.com', password: 'Password123!' })}>login</button><button onClick={() => void auth.googleLogin('google-credential')}>google</button></>
 }
 
 describe('AuthProvider', () => {
@@ -50,5 +50,16 @@ describe('AuthProvider', () => {
     await userEvent.click(screen.getByRole('button', { name: 'login' }))
     expect(await screen.findByText(user.email)).toBeInTheDocument()
     expect(getAccessToken()).toBe('new-token')
+  })
+
+  it('stores only the KBase token returned by Google authentication', async () => {
+    vi.mocked(authApi.googleLogin).mockResolvedValue({ accessToken: 'kbase-jwt', tokenType: 'Bearer', expiresIn: 3600, user })
+    render(<AuthProvider><Probe /></AuthProvider>)
+    await screen.findByText('anonymous')
+    await userEvent.click(screen.getByRole('button', { name: 'google' }))
+    expect(await screen.findByText(user.email)).toBeInTheDocument()
+    expect(authApi.googleLogin).toHaveBeenCalledWith('google-credential')
+    expect(getAccessToken()).toBe('kbase-jwt')
+    expect(window.localStorage.getItem('google-credential')).toBeNull()
   })
 })

@@ -31,15 +31,21 @@ class AuthenticationValidationTests {
     @Test
     void acceptsValidRegistration() {
         assertTrue(validator.validate(
-                new RegisterRequest("person@example.com", "password123")
+                new RegisterRequest(null, "person@example.com", "password123")
         ).isEmpty());
     }
 
     @Test
     void rejectsInvalidEmailAndShortPassword() {
         assertFalse(validator.validate(
-                new RegisterRequest("not-an-email", "short")
+                new RegisterRequest(null, "not-an-email", "short")
         ).isEmpty());
+    }
+
+    @Test
+    void rejectsSuppliedBlankFullNameButAllowsOmissionForOldClients() {
+        assertFalse(validator.validate(new RegisterRequest("   ", "person@example.com", "password123")).isEmpty());
+        assertTrue(validator.validate(new RegisterRequest(null, "person@example.com", "password123")).isEmpty());
     }
 
     @Test
@@ -47,7 +53,7 @@ class AuthenticationValidationTests {
         String unicodePassword = "😀".repeat(19);
 
         assertFalse(validator.validate(
-                new RegisterRequest("person@example.com", unicodePassword)
+                new RegisterRequest(null, "person@example.com", unicodePassword)
         ).isEmpty());
         assertFalse(validator.validate(
                 new LoginRequest("person@example.com", unicodePassword)

@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { BrandMark } from './BrandMark'
+import { StaticBackground } from './DynamicBackground'
+import { LanguageSwitcher } from './LanguageSwitcher'
 
 export function AuthPanel({ title, subtitle, footer, children }: {
   title: string
@@ -7,21 +10,21 @@ export function AuthPanel({ title, subtitle, footer, children }: {
   footer: ReactNode
   children: ReactNode
 }) {
+  const { pathname } = useLocation()
+  const isRegister = pathname === '/register'
   return (
-    <main className="relative grid min-h-screen place-items-center overflow-hidden bg-slate-950 px-4 py-10 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(34,211,238,.13),transparent_34%),radial-gradient(circle_at_80%_75%,rgba(99,102,241,.12),transparent_36%)]" />
-      <div className="relative w-full max-w-md">
-        <Link to="/" className="mb-7 flex w-fit items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300">
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-cyan-400 text-lg font-black text-slate-950">K</span>
-          <span className="text-xl font-semibold tracking-tight">KBase</span>
-        </Link>
-        <section className="rounded-2xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/30 backdrop-blur sm:p-8">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-8 text-[#16181D] sm:px-6">
+      <div className="fixed right-4 top-4 z-50 sm:right-6 sm:top-6"><LanguageSwitcher /></div>
+      <StaticBackground className="auth-background" src={isRegister ? '/assets/kbase/background-04-mountain-clean.png' : '/assets/kbase/background-02-workspace-clean.png'} mobilePosition={isRegister ? '45% center' : '65% center'} />
+      <div className="relative z-10 w-full max-w-[460px]">
+        <section className="rounded-[26px] border border-white/60 bg-white/78 p-6 shadow-[0_24px_70px_rgba(32,44,94,.18)] backdrop-blur-[22px] sm:p-9">
+          <div className="mb-7"><BrandMark /></div>
           <header className="mb-7">
-            <h1 className="text-2xl font-semibold tracking-tight text-white">{title}</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-400">{subtitle}</p>
+            <h1 className="text-2xl font-bold tracking-[-0.025em] text-[#16181D] sm:text-[28px]">{title}</h1>
+            <p className="mt-2 text-sm leading-6 text-[#667085]">{subtitle}</p>
           </header>
           {children}
-          <div className="mt-7 border-t border-white/10 pt-5 text-center text-sm text-slate-400">{footer}</div>
+          <div className="mt-7 border-t border-[#E7E9F0] pt-5 text-center text-sm text-[#667085]">{footer}</div>
         </section>
       </div>
     </main>

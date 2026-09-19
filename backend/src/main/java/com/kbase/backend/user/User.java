@@ -31,7 +31,7 @@ public class User {
     @Column(nullable = false, unique = true, length = 320)
     private String email;
 
-    @Column(name = "password_hash", nullable = false, length = 60)
+    @Column(name = "password_hash", length = 60)
     private String passwordHash;
 
     @ElementCollection(fetch = FetchType.EAGER)

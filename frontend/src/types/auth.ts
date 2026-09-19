@@ -16,4 +16,6 @@ export interface LoginRequest {
   password: string
 }
 
-export interface RegisterRequest extends LoginRequest {}
+export interface RegisterRequest extends LoginRequest {
+  fullName?: string
+}

@@ -34,9 +34,9 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.CONFLICT, exception.getMessage(), request, Map.of());
     }
 
-    @ExceptionHandler(InvalidCredentialsException.class)
+    @ExceptionHandler({InvalidCredentialsException.class, GoogleAuthenticationException.class})
     public ResponseEntity<ApiError> handleInvalidCredentials(
-            InvalidCredentialsException exception,
+            RuntimeException exception,
             HttpServletRequest request
     ) {
         return error(HttpStatus.UNAUTHORIZED, exception.getMessage(), request, Map.of());

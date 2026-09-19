@@ -10,11 +10,16 @@ describe('application router', () => {
 
   it('routes authenticated root to dashboard', async () => {
     renderRoutes(routes, '/', authValue({ user: testUser, isAuthenticated: true }))
-    expect(await screen.findByText('Your knowledge, ready to become useful.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: /Your knowledge/i })).toBeInTheDocument()
   })
 
   it('renders the not-found page', async () => {
     renderRoutes(routes, '/does-not-exist', authValue())
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
+  })
+
+  it('no longer exposes the standalone profile page', async () => {
+    renderRoutes(routes, '/profile', authValue({ user: testUser, isAuthenticated: true }))
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
   })
 })

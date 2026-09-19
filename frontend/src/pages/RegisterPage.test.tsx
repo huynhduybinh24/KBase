@@ -12,15 +12,27 @@ function setup(register = vi.fn()) {
 }
 
 async function fill(password = 'Password123!', confirm = password) {
+  await userEvent.type(screen.getByLabelText('Full Name'), 'Person Example')
   await userEvent.type(screen.getByLabelText('Email'), 'person@example.com')
   await userEvent.type(screen.getByLabelText('Password'), password)
   await userEvent.type(screen.getByLabelText('Confirm password'), confirm)
 }
 
 describe('RegisterPage', () => {
+  it('requires a full name without changing the backend payload', async () => {
+    const { register } = setup()
+    await userEvent.type(screen.getByLabelText('Email'), 'person@example.com')
+    await userEvent.type(screen.getByLabelText('Password'), 'Password123!')
+    await userEvent.type(screen.getByLabelText('Confirm password'), 'Password123!')
+    await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
+    expect(screen.getByText('Enter your full name.')).toBeInTheDocument()
+    expect(register).not.toHaveBeenCalled()
+  })
+
   it('renders and rejects invalid email', async () => {
     const { register } = setup()
     expect(screen.getByRole('heading', { name: 'Create your account' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Continue with Google')).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('Email'), 'bad-email')
     await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
     expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
@@ -41,7 +53,7 @@ describe('RegisterPage', () => {
     await fill()
     await userEvent.click(screen.getByRole('button', { name: 'Create account' }))
     expect(await screen.findByText('Login after registration')).toBeInTheDocument()
-    expect(register).toHaveBeenCalledWith({ email: 'person@example.com', password: 'Password123!' })
+    expect(register).toHaveBeenCalledWith({ fullName: 'Person Example', email: 'person@example.com', password: 'Password123!' })
   })
 
   it('shows backend registration errors', async () => {

@@ -9,6 +9,7 @@ import com.kbase.backend.security.JwtService;
 import com.kbase.backend.user.Role;
 import com.kbase.backend.user.User;
 import com.kbase.backend.user.UserRepository;
+import com.kbase.backend.user.profile.UserProfileService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +44,9 @@ class AuthServiceTests {
     @Mock
     private JwtService jwtService;
 
+    @Mock
+    private UserProfileService profileService;
+
     private BCryptPasswordEncoder passwordEncoder;
     private AuthService authService;
 
@@ -53,7 +57,8 @@ class AuthServiceTests {
                 userRepository,
                 passwordEncoder,
                 authenticationManager,
-                jwtService
+                jwtService,
+                profileService
         );
         lenient().when(jwtService.getExpirationSeconds()).thenReturn(3600L);
     }
@@ -66,7 +71,7 @@ class AuthServiceTests {
         when(jwtService.generateToken(any(User.class))).thenReturn("jwt-token");
 
         AuthResponse response = authService.register(
-                new RegisterRequest(" Person@Example.com ", "password123"));
+                new RegisterRequest("Person Example", " Person@Example.com ", "password123"));
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).saveAndFlush(userCaptor.capture());
@@ -77,6 +82,7 @@ class AuthServiceTests {
         assertEquals(Set.of(Role.USER), savedUser.getRoles());
         assertEquals("jwt-token", response.accessToken());
         assertEquals("Bearer", response.tokenType());
+        verify(profileService).createForRegistration(savedUser, "Person Example");
     }
 
     @Test
@@ -86,7 +92,7 @@ class AuthServiceTests {
         assertThrows(
                 EmailAlreadyExistsException.class,
                 () -> authService.register(
-                        new RegisterRequest("person@example.com", "password123"))
+                        new RegisterRequest(null, "person@example.com", "password123"))
         );
     }
 
@@ -112,6 +118,8 @@ class AuthServiceTests {
 
     @Test
     void loginRejectsInvalidCredentials() {
+        when(userRepository.findByEmailIgnoreCase("person@example.com")).thenReturn(Optional.of(
+                new User("person@example.com", passwordEncoder.encode("password123"), Set.of(Role.USER))));
         when(authenticationManager.authenticate(any(Authentication.class)))
                 .thenThrow(new BadCredentialsException("bad credentials"));
 
@@ -120,5 +128,14 @@ class AuthServiceTests {
                 () -> authService.login(
                         new LoginRequest("person@example.com", "wrong-password"))
         );
+    }
+
+    @Test
+    void googleOnlyUserCannotUsePasswordLogin() {
+        when(userRepository.findByEmailIgnoreCase("google@example.com"))
+                .thenReturn(Optional.of(new User("google@example.com", null, Set.of(Role.USER))));
+        assertThrows(InvalidCredentialsException.class,
+                () -> authService.login(new LoginRequest("google@example.com", "anything")));
+        verify(authenticationManager, org.mockito.Mockito.never()).authenticate(any());
     }
 }

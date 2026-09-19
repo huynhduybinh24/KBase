@@ -3,6 +3,8 @@ package com.kbase.backend.auth;
 import com.kbase.backend.auth.dto.AuthResponse;
 import com.kbase.backend.auth.dto.LoginRequest;
 import com.kbase.backend.auth.dto.RegisterRequest;
+import com.kbase.backend.auth.dto.GoogleAuthRequest;
+import com.kbase.backend.auth.google.GoogleAuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,9 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final GoogleAuthService googleAuthService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, GoogleAuthService googleAuthService) {
         this.authService = authService;
+        this.googleAuthService = googleAuthService;
     }
 
     @PostMapping("/register")
@@ -36,5 +40,11 @@ public class AuthController {
     @Operation(summary = "Authenticate and issue a JWT")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/google")
+    @Operation(summary = "Verify a Google identity and issue a KBase JWT")
+    public AuthResponse google(@Valid @RequestBody GoogleAuthRequest request) {
+        return googleAuthService.authenticate(request.credential());
     }
 }

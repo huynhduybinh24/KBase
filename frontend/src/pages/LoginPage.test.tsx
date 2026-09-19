@@ -16,6 +16,10 @@ describe('LoginPage', () => {
   it('renders and prevents invalid submission', async () => {
     const { login } = setup()
     expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
+    expect(screen.getAllByRole('img', { name: 'KBase' })).toHaveLength(1)
+    expect(screen.getByRole('img', { name: 'KBase' })).toHaveAttribute('src', '/assets/kbase/kbase-logo-web.png')
+    expect(screen.queryByText('Build knowledge that stays useful.')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Continue with Google')).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('Email'), 'invalid')
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()

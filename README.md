@@ -86,6 +86,7 @@ The defaults in `backend/src/main/resources/application.properties` target a loc
 | `JPA_DDL_AUTO` | `validate` | Hibernate schema action |
 | `JWT_SECRET` | Required | JWT signing key (Base64, at least 256 bits) |
 | `JWT_EXPIRATION_SECONDS` | `3600` | Access-token lifetime; legacy `JWT_EXPIRATION_MS` is also accepted |
+| `GOOGLE_CLIENT_ID` | Required for Google login | Google OAuth Web Client ID used to verify ID-token audience |
 | `MINIO_ENDPOINT` | `http://localhost:9000` | S3-compatible API endpoint |
 | `MINIO_ACCESS_KEY` | Required | Object-storage access key |
 | `MINIO_SECRET_KEY` | Required | Object-storage secret key |
@@ -137,6 +138,7 @@ Upload size is enforced by both servlet multipart parsing and application valida
 | --- | --- | --- | --- |
 | `POST` | `/api/auth/register` | Public | Register a new account with the `USER` role |
 | `POST` | `/api/auth/login` | Public | Authenticate and receive a JWT access token |
+| `POST` | `/api/auth/google` | Public | Verify a Google credential, link/create an account, and receive a KBase JWT |
 | `GET` | `/api/users/me` | Bearer JWT | Return the currently authenticated user |
 
 Send the returned token to protected endpoints using:
@@ -146,6 +148,18 @@ Authorization: Bearer <access-token>
 ```
 
 The supported roles are `ADMIN`, `OWNER`, and `USER`. Public registration always assigns `USER`; privileged roles must be assigned through a controlled administrative workflow.
+
+#### Google Sign-In
+
+Set `VITE_GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com` in
+`frontend/.env.local` and `GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com`
+in the backend environment (or root `.env` for Compose). Configure
+`http://localhost:5173` as an authorized JavaScript origin in Google Cloud.
+
+Google Identity Services returns an ID token to the browser; KBase sends it once to
+`POST /api/auth/google`, cryptographically verifies it against the backend client ID,
+links or creates the local account, and issues its own KBase JWT. The Google credential
+is never used as the protected API session token and is not persisted by the frontend.
 
 ### Projects
 
@@ -257,6 +271,7 @@ npm run dev
 The frontend runs at `http://localhost:5173`. Set `VITE_API_BASE_URL` in a local `.env`
 when the backend is not at `http://localhost:8080`. Swagger is available at
 `http://localhost:8080/swagger-ui/index.html`.
+Google login additionally requires `VITE_GOOGLE_CLIENT_ID` in `frontend/.env.local`.
 
 ### Tests and build
 

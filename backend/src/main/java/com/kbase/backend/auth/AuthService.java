@@ -10,6 +10,7 @@ import com.kbase.backend.security.JwtService;
 import com.kbase.backend.user.Role;
 import com.kbase.backend.user.User;
 import com.kbase.backend.user.UserRepository;
+import com.kbase.backend.user.profile.UserProfileService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -28,17 +29,20 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final UserProfileService profileService;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             AuthenticationManager authenticationManager,
-            JwtService jwtService
+            JwtService jwtService,
+            UserProfileService profileService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
+        this.profileService = profileService;
     }
 
     @Transactional
@@ -59,6 +63,7 @@ public class AuthService {
         } catch (DataIntegrityViolationException exception) {
             throw new EmailAlreadyExistsException();
         }
+        profileService.createForRegistration(user, request.fullName());
 
         return response(user);
     }
@@ -66,6 +71,9 @@ public class AuthService {
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         String email = normalizeEmail(request.email());
+        User candidate = userRepository.findByEmailIgnoreCase(email)
+                .filter(user -> user.passwordHash() != null)
+                .orElseThrow(InvalidCredentialsException::new);
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(email, request.password()));
@@ -73,12 +81,10 @@ public class AuthService {
             throw new InvalidCredentialsException();
         }
 
-        User user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(InvalidCredentialsException::new);
-        return response(user);
+        return response(candidate);
     }
 
-    private AuthResponse response(User user) {
+    public AuthResponse response(User user) {
         return new AuthResponse(
                 jwtService.generateToken(user),
                 "Bearer",
